@@ -17,11 +17,11 @@ REPLY_TEXT = """上头音乐 DJ 串烧 @DJRRS
 中国人聊天群 @GBJL88
 商务合作 @lmdoi"""
 
-# ---------------------- 关键修复：用正确的sendMessage回复 ----------------------
+# ---------------------- 关键：使用官方新增的answerGuestQuery API ----------------------
 @app.route('/bot', methods=['POST'])
 def webhook():
     try:
-        # 直接读取原始推送数据
+        # 读取原始推送数据
         raw_data = request.get_data().decode('utf-8')
         print(f"📩 收到Telegram原始推送：{raw_data}")
         
@@ -31,25 +31,33 @@ def webhook():
         # 处理访客消息（机器人不在群里时）
         if "guest_message" in data:
             guest_msg = data["guest_message"]
-            chat_id = guest_msg["chat"]["id"]
+            guest_query_id = guest_msg["guest_query_id"]
             text = guest_msg["text"]
             
-            print(f"📥 收到访客消息：{text} | 聊天ID：{chat_id}")
+            print(f"📥 收到访客消息：{text} | query_id：{guest_query_id}")
             
-            # 调用正确的sendMessage API
-            api_url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+            # 构造回复结果（和Inline Query格式一致）
+            results = [{
+                "type": "article",
+                "id": "1",
+                "title": "回复",
+                "input_message_content": {"message_text": REPLY_TEXT}
+            }]
+            
+            # 调用官方新增的answerGuestQuery API
+            api_url = f"https://api.telegram.org/bot{BOT_TOKEN}/answerGuestQuery"
             params = {
-                "chat_id": chat_id,
-                "text": REPLY_TEXT
+                "guest_query_id": guest_query_id,
+                "results": json.dumps(results)
             }
             
             response = requests.get(api_url, params=params)
-            print(f"🔗 调用sendMessage API，返回：{response.status_code} {response.text}")
+            print(f"🔗 调用answerGuestQuery API，返回：{response.status_code} {response.text}")
             
             if response.status_code == 200:
-                print(f"✅ 消息发送请求成功！")
+                print(f"✅ 访客消息回复成功！消息已发送到群聊")
             else:
-                print(f"❌ 消息发送失败，API错误：{response.text}")
+                print(f"❌ 访客消息回复失败，API错误：{response.text}")
         
         return "ok", 200
     except Exception as e:
