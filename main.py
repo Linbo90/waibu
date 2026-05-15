@@ -17,12 +17,12 @@ if not RAILWAY_DOMAIN.startswith("https://"):
 bot = telebot.TeleBot(BOT_TOKEN)
 app = Flask(__name__)
 
-# 你要的回复内容（先不用复杂格式，确保API识别）
+# 你要的回复内容
 REPLY_TEXT = """上头音乐 DJ 串烧 @DJRRS
 中国人聊天群 @GBJL88
 商务合作 @lmdoi"""
 
-# ---------------------- 处理访客消息（严格按API格式） ----------------------
+# ---------------------- 关键修复：改用POST请求传递JSON，避免URL编码 ----------------------
 @app.route('/bot', methods=['POST'])
 def webhook():
     try:
@@ -40,7 +40,7 @@ def webhook():
             print(f"📥 收到访客消息：{text} | query_id: {guest_query_id}")
             
             if guest_query_id:
-                # 严格按照官方格式构造回复（无多余参数）
+                # 构造回复（格式保持不变）
                 results = [{
                     "type": "article",
                     "id": "1",
@@ -50,18 +50,15 @@ def webhook():
                     }
                 }]
                 
-                # 打印构造的JSON，方便排查
-                results_json = json.dumps(results)
-                print(f"📝 构造的results JSON：{results_json}")
-                
-                # 调用API
+                # 调用answerGuestQuery API，改用POST请求，传递原始JSON
                 api_url = f"https://api.telegram.org/bot{BOT_TOKEN}/answerGuestQuery"
-                params = {
+                payload = {
                     "guest_query_id": guest_query_id,
-                    "results": results_json
+                    "results": results  # 直接传递Python列表，requests会自动序列化JSON
                 }
                 
-                response = requests.get(api_url, params=params)
+                # 关键：用POST请求，且用json参数传递，避免URL编码
+                response = requests.post(api_url, json=payload)
                 print(f"🔗 API返回：{response.status_code} {response.text}")
                 
                 if response.status_code == 200 and response.json().get("ok"):
