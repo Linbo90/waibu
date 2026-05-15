@@ -7,15 +7,17 @@ BOT_TOKEN = os.environ.get("BOT_TOKEN")
 RAILWAY_DOMAIN = os.environ.get("RAILWAY_PUBLIC_DOMAIN")
 
 if not BOT_TOKEN or not RAILWAY_DOMAIN:
-    raise ValueError("请设置BOT_TOKEN和RAILWAY_PUBLIC_DOMAIN")
+    raise ValueError("请在Railway Variables中设置BOT_TOKEN和RAILWAY_PUBLIC_DOMAIN")
 
 if not RAILWAY_DOMAIN.startswith("https://"):
     RAILWAY_DOMAIN = f"https://{RAILWAY_DOMAIN}"
 
 app = Flask(__name__)
 
-# 回复内容（纯文本，无任何格式/换行）
-REPLY_TEXT = "上头音乐 DJ 串烧 @DJRRS"
+# 回复内容
+REPLY_TEXT = """上头音乐 DJ 串烧 @DJRRS
+中国人聊天群 @GBJL88
+商务合作 @lmdoi"""
 
 @app.route("/bot", methods=["POST"])
 def webhook():
@@ -29,22 +31,20 @@ def webhook():
             guest_msg = data["guest_message"]
             guest_query_id = guest_msg.get("guest_query_id")
 
-            print(f"📥 收到guest_message | query_id: {guest_query_id}")
+            print(f"📥 收到群内@提及 | query_id: {guest_query_id}")
 
             if guest_query_id:
-                # 严格按照成功案例的格式构造results
+                # 关键：使用text类型的InlineQueryResult，不需要input_message_content
                 results = [{
-                    "type": "article",
+                    "type": "text",
                     "id": "1",
                     "title": "回复",
-                    "input_message_content": {
-                        "message_text": REPLY_TEXT
-                    }
+                    "message_text": REPLY_TEXT
                 }]
 
                 print(f"📝 构造的results JSON: {json.dumps(results)}")
 
-                # 调用answerGuestQuery，用POST+form-data格式（和成功案例一致）
+                # 调用answerGuestQuery API，用POST+form-data格式
                 api_url = f"https://api.telegram.org/bot{BOT_TOKEN}/answerGuestQuery"
                 payload = {
                     "guest_query_id": guest_query_id,
