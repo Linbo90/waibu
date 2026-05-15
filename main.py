@@ -15,8 +15,8 @@ if not RAILWAY_DOMAIN.startswith("https://"):
 
 app = Flask(__name__)
 
-# 回复内容：使用单行文本，避免换行符导致JSON解析问题
-REPLY_CONTENT = "上头音乐 DJ 串烧 @DJRRS | 中国人聊天群 @GBJL88 | 商务合作 @lmdoi"
+# 回复内容（纯文本，无格式）
+REPLY_TEXT = "上头音乐 DJ 串烧 @DJRRS\n中国人聊天群 @GBJL88\n商务合作 @lmdoi"
 
 # ---------------------- 严格按照官方文档实现answerGuestQuery ----------------------
 @app.route("/bot", methods=["POST"])
@@ -29,7 +29,7 @@ def webhook():
         # 解析JSON数据
         data = json.loads(raw_data)
 
-        # 处理guest_message
+        # 只处理guest_message更新
         if "guest_message" in data:
             guest_msg = data["guest_message"]
             guest_query_id = guest_msg.get("guest_query_id")
@@ -40,29 +40,27 @@ def webhook():
 
             if guest_query_id:
                 # 1. 严格按照官方格式构造InlineQueryResultArticle
-                # 必须包含type、id、title、input_message_content（含type和message_text）
+                # 必须包含：type, id, title, input_message_content（含type和message_text）
                 results = [{
                     "type": "article",
                     "id": "1",
                     "title": "回复",
                     "input_message_content": {
                         "type": "text",
-                        "message_text": REPLY_CONTENT
+                        "message_text": REPLY_TEXT
                     }
                 }]
 
                 # 2. 调用answerGuestQuery API，POST请求+JSON参数
                 api_url = f"https://api.telegram.org/bot{BOT_TOKEN}/answerGuestQuery"
+                
+                # 关键：使用requests.post的data参数，传递form-data格式（Telegram API支持两种格式）
                 payload = {
                     "guest_query_id": guest_query_id,
-                    "results": results
+                    "results": json.dumps(results)  # 手动序列化，避免requests的自动转义问题
                 }
 
-                response = requests.post(
-                    api_url,
-                    json=payload,
-                    headers={"Content-Type": "application/json"}
-                )
+                response = requests.post(api_url, data=payload)
 
                 # 打印完整API返回
                 print(f"🔗 API状态码：{response.status_code} | 返回内容：{response.text}")
