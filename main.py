@@ -13,16 +13,6 @@ PORT = int(os.getenv("PORT", "8080"))
 
 API = f"https://api.telegram.org/bot{BOT_TOKEN}"
 
-CHANNEL_NAME = "上头音乐 DJ 串烧"
-CHANNEL_USERNAME = "@DJRRS"
-
-GROUP_NAME = "中国人聊天群"
-GROUP_USERNAME = "@GBJL88"
-
-SUPPORT_NAME = "商务合作"
-SUPPORT_USERNAME = "@lmdoi"
-
-
 def set_webhook():
     webhook_url = f"https://{PUBLIC_DOMAIN}/{WEBHOOK_SECRET}"
     payload = {
@@ -38,20 +28,26 @@ def answer_guest_query(guest_query_id: str):
     result = {
         "type": "photo",
         "id": "reply_card_1",
-        "photo_url": "https://picsum.photos/1200/900",
-        "thumbnail_url": "https://picsum.photos/300/200",
+        "photo_url": "https://cdn.phototourl.com/free/2026-05-16-6823516e-43e8-41a2-95eb-96e811e34fb6.jpg",
+        "thumbnail_url": "https://cdn.phototourl.com/free/2026-05-16-6823516e-43e8-41a2-95eb-96e811e34fb6.jpg",
         "caption": (
-            "上头音乐 DJ 串烧 @DJRRS\n"
-            "中国人聊天群 @GBJL88\n"
-            "商务合作 @lmdoi"
+            '<a href="https://t.me/DJRRS">上头DJ @DJRRS</a>\n'
+            '<a href="https://t.me/GBJL88">聊天群 @GBJL88</a>\n'
+            '<a href="https://t.me/WNFFX">文案馆 @WNFFX</a>\n'
+            '<a href="https://t.me/hrgxx">搞笑吃瓜 @hrgxx</a>\n'
+            '<a href="https://t.me/lmdoi">商务合作 @lmdoi</a>'
         ),
-        "reply_markup": {
-            "inline_keyboard": [
-                [{"text": CHANNEL_NAME, "url": f"https://t.me/{CHANNEL_USERNAME.lstrip('@')}"}],
-                [{"text": GROUP_NAME, "url": f"https://t.me/{GROUP_USERNAME.lstrip('@')}"}],
-                [{"text": SUPPORT_NAME, "url": f"https://t.me/{SUPPORT_USERNAME.lstrip('@')}"}],
-            ]
-        },
+        "parse_mode": "HTML"
+    }
+
+    payload = {
+        "guest_query_id": guest_query_id,
+        "result": result,
+    }
+
+    r = requests.post(f"{API}/answerGuestQuery", json=payload, timeout=20)
+    r.raise_for_status()
+    print("answerGuestQuery:", r.json())
     }
 
     payload = {
