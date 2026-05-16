@@ -1,79 +1,112 @@
-from flask import Flask, request
-import os
-import requests
 import json
+import os
+from http.server import BaseHTTPRequestHandler, HTTPServer
 
-BOT_TOKEN = os.environ.get("BOT_TOKEN")
-RAILWAY_DOMAIN = os.environ.get("RAILWAY_PUBLIC_DOMAIN")
+import requests
 
-if not BOT_TOKEN or not RAILWAY_DOMAIN:
-    raise ValueError("请在Railway Variables中设置BOT_TOKEN和RAILWAY_PUBLIC_DOMAIN")
+BOT_TOKEN = os.getenv("BOT_TOKEN", "").strip()
+BOT_USERNAME = os.getenv("BOT_USERNAME", "@uuuuloikbot").strip()
+WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET", "tg_guest_hook").strip()
 
-if not RAILWAY_DOMAIN.startswith("https://"):
-    RAILWAY_DOMAIN = f"https://{RAILWAY_DOMAIN}"
+PUBLIC_DOMAIN = os.getenv("PUBLIC_DOMAIN", "waibu-production.up.railway.app").strip()
+PORT = int(os.getenv("PORT", "8080"))
 
-app = Flask(__name__)
+API = f"https://api.telegram.org/bot{BOT_TOKEN}"
 
-# 回复内容
-REPLY_TEXT = """上头音乐 DJ 串烧 @DJRRS
-中国人聊天群 @GBJL88
-商务合作 @lmdoi"""
+CHANNEL_NAME = "上头音乐 DJ 串烧"
+CHANNEL_USERNAME = "@DJRRS"
 
-@app.route("/bot", methods=["POST"])
-def webhook():
-    try:
-        raw_data = request.get_data().decode("utf-8")
-        print(f"📩 收到Telegram推送：{raw_data}")
+GROUP_NAME = "中国人聊天群"
+GROUP_USERNAME = "@GBJL88"
 
-        data = json.loads(raw_data)
+SUPPORT_NAME = "商务合作"
+SUPPORT_USERNAME = "@lmdoi"
 
-        if "guest_message" in data:
-            guest_msg = data["guest_message"]
-            guest_query_id = guest_msg.get("guest_query_id")
 
-            print(f"📥 收到群内@提及 | query_id: {guest_query_id}")
+def set_webhook():
+    webhook_url = f"https://{PUBLIC_DOMAIN}/{WEBHOOK_SECRET}"
+    payload = {
+        "url": webhook_url,
+        "allowed_updates": ["guest_message"],
+    }
+    r = requests.post(f"{API}/setWebhook", json=payload, timeout=20)
+    r.raise_for_status()
+    print("Webhook set:", r.json())
 
-            if guest_query_id:
-                # 关键：使用text类型的InlineQueryResult，不需要input_message_content
-                results = [{
-                    "type": "text",
-                    "id": "1",
-                    "title": "回复",
-                    "message_text": REPLY_TEXT
-                }]
 
-                print(f"📝 构造的results JSON: {json.dumps(results)}")
+def answer_guest_query(guest_query_id: str):
+    result = {
+        "type": "photo",
+        "id": "reply_card_1",
+        "photo_url": "https://picsum.photos/1200/900",
+        "thumbnail_url": "https://picsum.photos/300/200",
+        "caption": (
+            "上头音乐 DJ 串烧 @DJRRS\n"
+            "中国人聊天群 @GBJL88\n"
+            "商务合作 @lmdoi"
+        ),
+        "reply_markup": {
+            "inline_keyboard": [
+                [{"text": CHANNEL_NAME, "url": f"https://t.me/{CHANNEL_USERNAME.lstrip('@')}"}],
+                [{"text": GROUP_NAME, "url": f"https://t.me/{GROUP_USERNAME.lstrip('@')}"}],
+                [{"text": SUPPORT_NAME, "url": f"https://t.me/{SUPPORT_USERNAME.lstrip('@')}"}],
+            ]
+        },
+    }
 
-                # 调用answerGuestQuery API，用POST+form-data格式
-                api_url = f"https://api.telegram.org/bot{BOT_TOKEN}/answerGuestQuery"
-                payload = {
-                    "guest_query_id": guest_query_id,
-                    "results": json.dumps(results)
-                }
+    payload = {
+        "guest_query_id": guest_query_id,
+        "result": result,
+    }
 
-                response = requests.post(api_url, data=payload)
+    r = requests.post(f"{API}/answerGuestQuery", json=payload, timeout=20)
+    r.raise_for_status()
+    print("answerGuestQuery:", r.json())
 
-                print(f"🔗 API状态码: {response.status_code} | 返回内容: {response.text}")
 
-                if response.status_code == 200 and response.json().get("ok"):
-                    print("✅ 回复成功！消息已直接发送到群聊")
-                else:
-                    print(f"❌ 回复失败: {response.text}")
+class Handler(BaseHTTPRequestHandler):
+    def do_POST(self):
+        if self.path != f"/{WEBHOOK_SECRET}":
+            self.send_response(404)
+            self.end_headers()
+            self.wfile.write(b"Not Found")
+            return
 
-        return "ok", 200
-    except Exception as e:
-        print(f"❌ 服务器错误: {str(e)}")
-        return "error", 500
+        length = int(self.headers.get("Content-Length", "0"))
+        raw = self.rfile.read(length) if length else b"{}"
+
+        try:
+            update = json.loads(raw.decode("utf-8"))
+        except Exception:
+            self.send_response(400)
+            self.end_headers()
+            self.wfile.write(b"Bad Request")
+            return
+
+        guest_message = update.get("guest_message")
+        if guest_message:
+            text = (guest_message.get("text") or "").strip().lower()
+            guest_query_id = guest_message.get("guest_query_id")
+
+            if guest_query_id and BOT_USERNAME.lower() in text:
+                try:
+                    answer_guest_query(guest_query_id)
+                except Exception as e:
+                    print("reply failed:", repr(e))
+
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(b"OK")
+
+    def log_message(self, format, *args):
+        return
+
 
 if __name__ == "__main__":
-    import time
-    time.sleep(3)
+    if not BOT_TOKEN:
+        raise RuntimeError("BOT_TOKEN is required")
 
-    # 设置Webhook
-    requests.get(f"https://api.telegram.org/bot{BOT_TOKEN}/deleteWebhook")
-    webhook_url = f"{RAILWAY_DOMAIN}/bot"
-    requests.get(f"https://api.telegram.org/bot{BOT_TOKEN}/setWebhook?url={webhook_url}")
-    print(f"🔗 Webhook设置成功：{webhook_url}")
-
-    port = int(os.environ.get("PORT", 8080))
-    app.run(host="0.0.0.0", port=port)
+    set_webhook()
+    server = HTTPServer(("0.0.0.0", PORT), Handler)
+    print(f"Listening on 0.0.0.0:{PORT}")
+    server.serve_forever()
