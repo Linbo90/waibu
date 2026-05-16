@@ -13,6 +13,7 @@ PORT = int(os.getenv("PORT", "8080"))
 
 API = f"https://api.telegram.org/bot{BOT_TOKEN}"
 
+
 def set_webhook():
     webhook_url = f"https://{PUBLIC_DOMAIN}/{WEBHOOK_SECRET}"
     payload = {
@@ -37,17 +38,7 @@ def answer_guest_query(guest_query_id: str):
             '<a href="https://t.me/hrgxx">搞笑吃瓜 @hrgxx</a>\n'
             '<a href="https://t.me/lmdoi">商务合作 @lmdoi</a>'
         ),
-        "parse_mode": "HTML"
-    }
-
-    payload = {
-        "guest_query_id": guest_query_id,
-        "result": result,
-    }
-
-    r = requests.post(f"{API}/answerGuestQuery", json=payload, timeout=20)
-    r.raise_for_status()
-    print("answerGuestQuery:", r.json())
+        "parse_mode": "HTML",
     }
 
     payload = {
